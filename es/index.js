@@ -72,6 +72,44 @@ function _possibleConstructorReturn(self, call) {
   return _assertThisInitialized(self);
 }
 
+function _slicedToArray(arr, i) {
+  return _arrayWithHoles(arr) || _iterableToArrayLimit(arr, i) || _nonIterableRest();
+}
+
+function _arrayWithHoles(arr) {
+  if (Array.isArray(arr)) return arr;
+}
+
+function _iterableToArrayLimit(arr, i) {
+  var _arr = [];
+  var _n = true;
+  var _d = false;
+  var _e = undefined;
+
+  try {
+    for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) {
+      _arr.push(_s.value);
+
+      if (i && _arr.length === i) break;
+    }
+  } catch (err) {
+    _d = true;
+    _e = err;
+  } finally {
+    try {
+      if (!_n && _i["return"] != null) _i["return"]();
+    } finally {
+      if (_d) throw _e;
+    }
+  }
+
+  return _arr;
+}
+
+function _nonIterableRest() {
+  throw new TypeError("Invalid attempt to destructure non-iterable instance");
+}
+
 /**
  * Attempts to parse the offset provided as a prop as a percentage. For
  * instance, if the component has been provided with the string "20%" as
@@ -262,10 +300,10 @@ function resolveScrollableAncestorProp(scrollableAncestor) {
   // To make Waypoint easier to work with, we allow this to be specified in
   // string form and safely convert to `window` here.
   if (scrollableAncestor === 'window') {
-    return global.window;
+    return [global.window, 'window'];
   }
 
-  return scrollableAncestor;
+  return [scrollableAncestor, undefined];
 }
 
 var defaultProps = {
@@ -320,7 +358,14 @@ function (_React$PureComponent) {
 
         ensureRefIsProvidedByChild(children, _this2._ref);
         _this2._handleScroll = _this2._handleScroll.bind(_this2);
-        _this2.scrollableAncestor = _this2._findScrollableAncestor();
+
+        var _this2$_findScrollabl = _this2._findScrollableAncestor(),
+            _this2$_findScrollabl2 = _slicedToArray(_this2$_findScrollabl, 2),
+            scrollableAncestor = _this2$_findScrollabl2[0],
+            scrollableAncestorType = _this2$_findScrollabl2[1];
+
+        _this2.scrollableAncestor = scrollableAncestor;
+        _this2.scrollableAncestorType = scrollableAncestorType;
 
         if (process.env.NODE_ENV !== 'production' && debug) {
           debugLog('scrollableAncestor', _this2.scrollableAncestor);
@@ -413,7 +458,22 @@ function (_React$PureComponent) {
 
         if (node === document.body) {
           // We've reached all the way to the root node.
-          return window;
+          return [window, 'window'];
+        }
+
+        if (node.tagName === 'BODY') {
+          // Reaced the iframe root
+          for (var i = 0; i < window.frames.length; i++) {
+            var frameWindow = window.frames[i].window;
+            var frameBody = frameWindow && frameWindow.document.body;
+
+            if (frameBody === node) {
+              return [frameWindow, 'window'];
+            }
+          }
+
+          debugLog('BODY node', node);
+          throw new Error('Reached a body tag but could not find matched iframe window');
         }
 
         var style = window.getComputedStyle(node);
@@ -421,13 +481,13 @@ function (_React$PureComponent) {
         var overflow = overflowDirec || style.getPropertyValue('overflow');
 
         if (overflow === 'auto' || overflow === 'scroll') {
-          return node;
+          return [node, 'dom'];
         }
       } // A scrollable ancestor element was not found, which means that we need to
       // do stuff on window.
 
 
-      return window;
+      return [window, 'window'];
     }
     /**
      * @param {Object} event the native scroll event coming from the scrollable
@@ -528,8 +588,8 @@ function (_React$PureComponent) {
       var contextHeight;
       var contextScrollTop;
 
-      if (this.scrollableAncestor === window) {
-        contextHeight = horizontal ? window.innerWidth : window.innerHeight;
+      if (this.scrollableAncestorType === 'window') {
+        contextHeight = horizontal ? this.scrollableAncestor.innerWidth : this.scrollableAncestor.innerHeight;
         contextScrollTop = 0;
       } else {
         contextHeight = horizontal ? this.scrollableAncestor.offsetWidth : this.scrollableAncestor.offsetHeight;

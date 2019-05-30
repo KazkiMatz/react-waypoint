@@ -55,7 +55,9 @@ export class Waypoint extends React.PureComponent {
       ensureRefIsUsedByChild(children, this._ref);
 
       this._handleScroll = this._handleScroll.bind(this);
-      this.scrollableAncestor = this._findScrollableAncestor();
+      const [scrollableAncestor, scrollableAncestorType] = this._findScrollableAncestor();
+      this.scrollableAncestor = scrollableAncestor;
+      this.scrollableAncestorType = scrollableAncestorType;
 
       if (process.env.NODE_ENV !== 'production' && debug) {
         debugLog('scrollableAncestor', this.scrollableAncestor);
@@ -148,7 +150,21 @@ export class Waypoint extends React.PureComponent {
 
       if (node === document.body) {
         // We've reached all the way to the root node.
-        return window;
+        return [window, 'window'];
+      }
+
+      if (node.tagName === 'BODY') {
+        // Reaced the iframe root
+        for (let i = 0; i < window.frames.length; i++) {
+          const frameWindow = window.frames[i].window;
+          const frameBody = frameWindow && frameWindow.document.body;
+          if (frameBody === node) {
+            return [frameWindow, 'window'];
+          }
+        }
+
+        debugLog('BODY node', node);
+        throw new Error('Reached a body tag but could not find matched iframe window');
       }
 
       const style = window.getComputedStyle(node);
@@ -158,13 +174,13 @@ export class Waypoint extends React.PureComponent {
       const overflow = overflowDirec || style.getPropertyValue('overflow');
 
       if (overflow === 'auto' || overflow === 'scroll') {
-        return node;
+        return [node, 'dom'];
       }
     }
 
     // A scrollable ancestor element was not found, which means that we need to
     // do stuff on window.
-    return window;
+    return [window, 'window'];
   }
 
   /**
@@ -258,8 +274,10 @@ export class Waypoint extends React.PureComponent {
 
     let contextHeight;
     let contextScrollTop;
-    if (this.scrollableAncestor === window) {
-      contextHeight = horizontal ? window.innerWidth : window.innerHeight;
+    if (this.scrollableAncestorType === 'window') {
+      contextHeight = horizontal
+        ? this.scrollableAncestor.innerWidth
+        : this.scrollableAncestor.innerHeight;
       contextScrollTop = 0;
     } else {
       contextHeight = horizontal ? this.scrollableAncestor.offsetWidth
